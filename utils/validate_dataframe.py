@@ -1,61 +1,85 @@
 import pandas as pd
+import numpy as np
+from typing import List
 
-def validate_dataframe(df: pd.DataFrame) -> None:
+def validate_dataframe(df: pd.DataFrame) -> List[str]:
+    """
+    Validates the dataframe for data quality issues
+    Returns a list of validation issues found
+    """
     issues = []
 
-    # Допустимые значения
-    valid_values = {
-        'diagnosis': {'AML', 'ALL', 'SCD', 'Thalassemia'},
-        'disease_status': {'remission', 'active', 'relapse'},
-        'patient_sex': {'M', 'F'},
-        'patient_ethnicity': {'White', 'Black', 'Asian', 'Hispanic', 'Other'},
-        'donor_relation': {'sibling', 'matched unrelated', 'parent'},
-        'donor_sex': {'M', 'F'},
-        'donor_ethnicity': {'White', 'Black', 'Asian', 'Hispanic', 'Other'},
-        'source_of_cells': {'BM', 'PBSC', 'CB'},
-        'conditioning_regimen': {'myeloablative', 'reduced intensity'},
-        'gvhd_prophylaxis': {'CSA+MTX', 'Tac+MTX', 'Other'},
-        'engraftment_success': {0, 1},
-        'chronic_gvhd': {0, 1},
-        'overall_survival_1y': {0, 1},
-        'relapse': {0, 1},
-        'trm (transplant-related_mortality)': {0, 1},
-        'acute_gvhd_grade': {0, 1, 2, 3, 4}
+    # Проверяем наличие необходимых колонок
+    required_columns = {
+        'patient_age', 'donor_age', 'patient_sex', 'donor_sex',
+        'diagnosis', 'disease_status', 'source_of_cells',
+        'donor_relation', 'hla_match_score', 'engraftment_success',
+        'engraftment_days', 'acute_gvhd', 'chronic_gvhd',
+        'relapse', 'survival'
     }
 
-    # Проверка категориальных значений
-    for col, allowed in valid_values.items():
+    missing_columns = required_columns - set(df.columns)
+    if missing_columns:
+        issues.append(f"Missing required columns: {', '.join(missing_columns)}")
+
+    # Проверяем категориальные значения
+    valid_values = {
+        'patient_sex': {'M', 'F'},
+        'donor_sex': {'M', 'F'},
+        'diagnosis': {'ALL', 'AML', 'CML', 'MDS', 'NHL', 'HL', 'MM', 'Other'},
+        'disease_status': {'CR1', 'CR2', 'PR', 'Relapse', 'Refractory'},
+        'source_of_cells': {'BM', 'PBSC', 'Cord'},
+        'donor_relation': {'MRD', 'MUD', 'MMUD', 'Haplo'},
+        'hla_match_score': {6, 7, 8, 9, 10}
+    }
+
+    for col, valid_set in valid_values.items():
         if col in df.columns:
-            invalid = df[~df[col].isin(allowed)]
-            if not invalid.empty:
-                issues.append(f"Недопустимые значения в колонке '{col}': {set(df[col]) - allowed}")
+            # Преобразуем в строку для сравнения
+            values = df[col].astype(str).str.upper()
+            invalid_values = set(values.dropna().unique()) - valid_set
+            if invalid_values:
+                issues.append(f"Invalid values in {col}: {', '.join(map(str, invalid_values))}")
 
-    # Проверка числовых диапазонов
-    if 'hla_match_score' in df.columns:
-        if not df['hla_match_score'].between(0, 10).all():
-            issues.append("Некорректные значения в 'hla_match_score' (ожидается от 0 до 10)")
+    # Проверяем числовые значения
+    numeric_ranges = {
+        'patient_age': (0, 100),
+        'donor_age': (0, 100),
+        'engraftment_days': (0, 3650),
+        'acute_gvhd_days': (0, 365),
+        'chronic_gvhd_days': (0, 365),
+        'relapse_days': (0, 3650),
+        'survival_days': (0, 3650)
+    }
 
-    if 'patient_age' in df.columns:
-        if not df['patient_age'].between(0, 25).all():
-            issues.append("Некорректные значения в 'patient_age' (ожидается от 0 до 25)")
+    for col, (min_val, max_val) in numeric_ranges.items():
+        if col in df.columns:
+            try:
+                # Преобразуем в числовые значения, преобразуя ошибки в NaN
+                numeric_values = pd.to_numeric(df[col], errors='coerce')
+                if not numeric_values.between(min_val, max_val).all():
+                    issues.append(f"Values in {col} outside valid range [{min_val}, {max_val}]")
+            except Exception as e:
+                issues.append(f"Error validating {col}: {str(e)}")
 
-    if 'donor_age' in df.columns:
-        if not df['donor_age'].between(0, 60).all():
-            issues.append("Некорректные значения в 'donor_age' (ожидается от 0 до 60)")
+    # Проверяем логику
+    if 'engraftment_success' in df.columns and 'engraftment_days' in df.columns:
+        # Преобразуем в числовые значения для сравнения
+        engraftment_days = pd.to_numeric(df['engraftment_days'], errors='coerce')
+        success_mask = df['engraftment_success'] == 1
+        if not engraftment_days[success_mask].between(0, 100).all():
+            issues.append("Invalid engraftment days for successful engraftments")
 
-    if 'cd34_dose' in df.columns:
-        if not (df['cd34_dose'] > 0).all():
-            issues.append("Некорректные значения в 'cd34_dose' (ожидается > 0)")
+    return issues
 
-    if 'engraftment_days' in df.columns and 'engraftment_success' in df.columns:
-        invalid_days = df[(df['engraftment_success'] == 1) & ((df['engraftment_days'] < 0) | (df['engraftment_days'] > 100))]
-        if not invalid_days.empty:
-            issues.append("Некорректные значения в 'engraftment_days' при успешном приживлении (ожидается 0–100)")
+def print_validation_results(issues: List[str]) -> None:
+    """
+    Prints validation results in a formatted way
+    """
+    if not issues:
+        print("No validation issues found!")
+        return
 
-    # Вывод результатов
-    if issues:
-        print("Обнаружены проблемы с данными:")
-        for issue in issues:
-            print(" -", issue)
-    else:
-        print("Все данные соответствуют требованиям")
+    print("\nValidation Issues:")
+    for i, issue in enumerate(issues, 1):
+        print(f"{i}. {issue}")
