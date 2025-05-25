@@ -46,7 +46,7 @@ def preprocess_data() -> pd.DataFrame:
             'intxgf': 'time_to_graft_failure',
             'dwogf': 'days_without_graft_failure',
             'hctcigp': 'hct_ci_group',
-            'condreg': 'conditioning_regimen',
+            'condint': 'conditioning_regimen',
             'atg': 'anti_thymocyte_globulin',
             'agvhd24': 'acute_gvhd_grade',
             'intxagvhd24': 'time_to_acute_gvhd',
