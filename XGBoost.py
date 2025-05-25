@@ -6,6 +6,8 @@ from sklearn.metrics import classification_report, confusion_matrix, ConfusionMa
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
+import os
+import joblib
 
 # Загрузка данных
 df = pd.read_csv("processed/transplant_data.csv")
@@ -125,3 +127,22 @@ from sklearn.metrics import roc_auc_score
 cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 scores = cross_val_score(model, X, y, cv=cv, scoring="roc_auc")
 print(f"Mean AUC (5-fold CV): {np.mean(scores):.3f} ± {np.std(scores):.3f}")
+
+# Создаем папку models, если её нет
+os.makedirs('models', exist_ok=True)
+
+# Сохраняем модель
+model.save_model('models/xgboost_model.json')
+
+# Сохраняем объекты предобработки
+preprocessing_objects = {
+    'cat_imputer': cat_imputer if cat_cols else None,
+    'num_imputer': num_imputer if num_cols else None,
+    'scaler': scaler if num_cols else None,
+    'cat_cols': cat_cols,
+    'num_cols': num_cols,
+    'feature_names': X.columns.tolist()
+}
+
+joblib.dump(preprocessing_objects, 'models/preprocessing_objects.joblib')
+print("\nМодель и объекты предобработки сохранены в папке 'models'")
