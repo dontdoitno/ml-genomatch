@@ -141,3 +141,63 @@ imbalanced-learn
 This pipeline enables effective prediction of transplant outcomes using a robust clinical dataset and a fine-tuned XGBoost model. The high AUC and well-calibrated metrics demonstrate strong performance, but real-world validation is essential for deployment.
 
 For clinical collaboration or integration, top features and model predictions can guide risk stratification and personalized treatment planning.
+
+---
+
+## REST API: GenoMatch
+
+The trained XGBoost model is deployed as a RESTful API, allowing real-time predictions of transplant success based on clinical inputs.
+
+### Available Endpoints
+
+#### `POST /predict`
+
+Predicts the likelihood of a successful transplant based on patient and donor data.
+
+**Example Request:**
+
+```json
+{
+  "hla_match_score": 9.0,
+  "donor_age": 28,
+  "patient_age": 35,
+  "donor_sex": "M",
+  "patient_sex": "F",
+  "diagnosis": "AML",
+  "conditioning_regimen": "myeloablative",
+  "source_of_cells": "PBSC",
+  "days_from_diagnosis_to_hct": 45,
+  "cd34_dose": 6.7
+}
+```
+
+**Example Response:**
+
+```json
+{
+  "success_probability": "87.30%",
+  "risk_level": "Low Risk",
+  "recommendation": "High likelihood of successful transplant. Procedure can be planned.",
+  "confidence": "74.60%"
+}
+```
+
+#### `GET /`
+
+Returns basic information about the GenoMatch API service.
+
+---
+
+### Swagger Documentation
+
+Swagger documentation is available [here](https://app.swaggerhub.com/apis/itmo-0e9/GenoMatch/1.0.0)
+
+---
+
+### Running the API
+
+```bash
+uvicorn api:app --reload
+```
+
+The `api.py` file implements a FastAPI server that wraps the trained model and handles prediction requests.
